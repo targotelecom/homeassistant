@@ -1,0 +1,62 @@
+blueprint:
+  name: Set heat temperature at specific time and turn off A/C
+  description: Sets a climate entity to a specifc temperature at a set time everyday. If climate entity is off, it is normally not accepting temperature updated. This blueprints checks if climate entity is off and the temperature update will be set when thermostat is going back in heating mode.
+  domain: automation
+  source_url: https://gist.github.com/dirkk1980/d3a60a5ebc7c58b1c56024cb447bef3c
+  input:
+    time_to_set:
+      name: Time
+      description: When should the temperature be set
+      selector:
+        time:
+    climate_entity:
+      name: Thermostat
+      description: Climate entity which will get the temperature update
+      selector:
+        entity:
+          domain: climate
+    temp_to_set:
+      name: Temperature
+      description: Temperature to set on defined time
+      default: 19.5
+      selector:
+        number:
+          min: 10
+          max: 30
+          unit_of_measurement: degrees
+          step: 0.5
+
+trigger:
+  - platform: time
+    at: !input time_to_set
+
+mode: queued
+
+action:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: !input climate_entity
+            state: "heat"
+        sequence:
+          - service: climate.set_temperature
+            entity_id: !input climate_entity
+            data:
+              temperature: !input temp_to_set
+              hvac_mode: heat
+      - conditions:
+          - condition: state
+            entity_id: !input climate_entity
+            state: "off"
+        sequence:
+          - wait_for_trigger:
+              platform: state
+              entity_id: !input climate_entity
+              from: "off"
+              to: "heat"
+          #delay is necessary to prevents an override by other functions like window/doors sensor control which are restoring the prevoius temperature
+          - delay: 10
+          - service: climate.set_temperature
+            entity_id: !input climate_entity
+            data:
+              temperature: !input temp_to_set
